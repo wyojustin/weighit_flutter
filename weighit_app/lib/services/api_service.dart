@@ -81,6 +81,29 @@ class ApiService {
       throw Exception('Failed to redo');
     }
   }
+
+  Future<Map<String, dynamic>> getStableReading({double timeout = 2.0}) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/scale/stable?timeout=$timeout'),
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    }
+    throw Exception('Failed to get stable reading');
+  }
+  Future<List<LogEntry>> getRecentHistory({int limit = 15, String? source}) async {
+    final uri = source != null
+        ? Uri.parse('$baseUrl/history/recent?limit=$limit&source=$source')
+        : Uri.parse('$baseUrl/history/recent?limit=$limit');
+    final response = await http.get(uri);
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return (data['entries'] as List)
+          .map((e) => LogEntry.fromJson(e))
+          .toList();
+    }
+    throw Exception('Failed to get history');
+  }
 }
 
 class ScaleReading {
@@ -122,6 +145,38 @@ class FoodType {
       name: json['name'],
       requiresTemp: json['requires_temp'],
       sortOrder: json['sort_order'],
+    );
+  }
+}
+
+class LogEntry {
+  final int id;
+  final String source;
+  final String type;
+  final double weight;
+  final String created_at;
+  final double? tempPickup;
+  final double? tempDropoff;
+
+  LogEntry({
+    required this.id,
+    required this.source,
+    required this.type,
+    required this.weight,
+    required this.created_at,
+    this.tempPickup,
+    this.tempDropoff,
+  });
+
+  factory LogEntry.fromJson(Map<String, dynamic> json) {
+    return LogEntry(
+      id: json['id'] ?? 0,
+      source: json['source'] ?? '',
+      type: json['type'] ?? json['type_'] ?? '',
+      weight: (json['weight_lb'] ?? 0.0).toDouble(),
+      created_at: json['created_at'] ?? json['timestamp'] ?? '',
+      tempPickup: json['temp_pickup_f'],
+      tempDropoff: json['temp_dropoff_f'],
     );
   }
 }

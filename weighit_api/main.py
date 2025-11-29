@@ -24,6 +24,12 @@ sys.path.insert(0, WEIGHIT_PATH)
 from weigh.scale_backend import DymoHIDScale, ScaleReading
 from weigh import logger_core, db
 
+# Configure database path
+# Use local weighit.db if not specified
+db_path = os.getenv('DB_PATH', os.path.abspath('weighit.db'))
+db.DB_PATH = db_path
+print(f"✓ Using database: {db.DB_PATH}")
+
 # Initialize FastAPI
 app = FastAPI(title="WeighIt API", version="1.0.0")
 
@@ -39,10 +45,18 @@ app.add_middleware(
 # Initialize scale (singleton)
 scale: Optional[DymoHIDScale] = None
 
+from mock_scale import MockScale
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize scale connection on startup"""
     global scale
+    
+    if os.getenv('USE_MOCK_SCALE', '').lower() == 'true':
+        scale = MockScale()
+        print("✓ Mock Scale initialized")
+        return
+
     try:
         scale = DymoHIDScale()
         print("✓ Scale initialized successfully")
@@ -93,21 +107,30 @@ async def get_scale_reading():
             available=False
         )
     
-    reading = scale.get_latest()
-    if not reading:
+    try:
+        reading = scale.get_latest()
+        if not reading:
+            return ScaleReadingResponse(
+                value=0.0,
+                unit="lb",
+                is_stable=False,
+                available=False
+            )
+        
+        return ScaleReadingResponse(
+            value=reading.value,
+            unit=reading.unit,
+            is_stable=reading.is_stable,
+            available=True
+        )
+    except Exception as e:
+        print(f"Error reading scale: {e}")
         return ScaleReadingResponse(
             value=0.0,
             unit="lb",
             is_stable=False,
             available=False
         )
-    
-    return ScaleReadingResponse(
-        value=reading.value,
-        unit=reading.unit,
-        is_stable=reading.is_stable,
-        available=True
-    )
 
 @app.get("/scale/stable")
 async def get_stable_reading(timeout: float = 2.0):
@@ -177,6 +200,96 @@ async def get_recent_history(limit: int = 15, source: Optional[str] = None):
     """Get recent donation entries"""
     entries = logger_core.get_recent_entries(limit=limit, source=source)
     return {"entries": entries}
+
+@app.get("/reports/csv")
+async def generate_csv_report(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    source: Optional[str] = None
+):
+    """Generate CSV report for date range and source"""
+    from io import StringIO
+    import csv
+    from fastapi.responses import StreamingResponse
+    
+    # Get entries with filters
+    entries = logger_core.get_entries_filtered(
+        start_date=start_date,
+        end_date=end_date,
+        source=source
+    )
+    
+    # Generate CSV
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=['id', 'timestamp', 'source', 'type', 'weight_lb', 'temp_pickup_f', 'temp_dropoff_f'])
+    writer.writeheader()
+    writer.writerows(entries)
+    
+    csv_content = output.getvalue()
+    output.close()
+    
+    # Return as downloadable file
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=weighit_report.csv"}
+    )
+
+@app.post("/reports/email")
+async def email_report(
+    recipient: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    source: Optional[str] = None
+):
+    """Email CSV report to recipient"""
+    from io import StringIO
+    import csv
+    from email_reporter import send_report_email, load_email_config
+    
+    # Get entries with filters
+    entries = logger_core.get_entries_filtered(
+        start_date=start_date,
+        end_date=end_date,
+        source=source
+    )
+    
+    # Generate CSV
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=['id', 'timestamp', 'source', 'type', 'weight_lb', 'temp_pickup_f', 'temp_dropoff_f'])
+    writer.writeheader()
+    writer.writerows(entries)
+    csv_content = output.getvalue()
+    output.close()
+    
+    # Get recipient
+    if not recipient:
+        config = load_email_config()
+        recipient = config['default_recipient']
+    
+    # Create email body
+    total_weight = sum(e.get('weight_lb', 0) for e in entries)
+    body = f"""WeighIt Report
+    
+Date Range: {start_date or 'All'} to {end_date or 'All'}
+Source: {source or 'All'}
+Total Entries: {len(entries)}
+Total Weight: {total_weight:.2f} lb
+
+See attached CSV for details.
+"""
+    
+    # Send email
+    try:
+        send_report_email(
+            recipient=recipient,
+            subject=f"WeighIt Report - {datetime.now().strftime('%Y-%m-%d')}",
+            body=body,
+            csv_data=csv_content
+        )
+        return {"status": "success", "recipient": recipient, "entries": len(entries)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 
 @app.post("/undo")
 async def undo_last():
