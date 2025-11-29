@@ -12,24 +12,23 @@ from . import db
 
 # Default data - can be customized via database
 DEFAULT_SOURCES = {
-    "NFCC": "North Fayette Community Council",
-    "SHOAF": "Shoaf Food Bank",
-    "GBFB": "Greater Boston Food Bank",
-    "ACFB": "Allegheny County Food Bank",
-    "Walmart": "Walmart",
-    "Giant Eagle": "Giant Eagle",
-    "Other": "Other Source"
+    "Food for Neighbors": "Food for Neighbors",
+    "Trader Joe's": "Trader Joe's",
+    "Whole Foods": "Whole Foods",
+    "Wegmans": "Wegmans",
+    "Safeway": "Safeway",
+    "Good Shepherd donations": "Good Shepherd donations",
+    "FreshFarm St John Neumann": "FreshFarm St John Neumann"
 }
 
 DEFAULT_TYPES = {
-    "Produce": {"requires_temp": False, "sort_order": 1},
+    "Produce": {"requires_temp": False, "sort_order": 0},
+    "Dry": {"requires_temp": False, "sort_order": 1},
     "Dairy": {"requires_temp": True, "sort_order": 2},
     "Meat": {"requires_temp": True, "sort_order": 3},
-    "Frozen": {"requires_temp": True, "sort_order": 4},
+    "Prepared": {"requires_temp": True, "sort_order": 4},
     "Bread": {"requires_temp": False, "sort_order": 5},
-    "Canned": {"requires_temp": False, "sort_order": 6},
-    "Dry Goods": {"requires_temp": False, "sort_order": 7},
-    "Other": {"requires_temp": False, "sort_order": 8},
+    "Non-food": {"requires_temp": False, "sort_order": 6},
 }
 
 
