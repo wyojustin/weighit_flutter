@@ -16,11 +16,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
-# Add the original weighit package to path
-WEIGHIT_PATH = os.getenv('WEIGHIT_PATH', '/home/justin/code/weighit/src')
-sys.path.insert(0, WEIGHIT_PATH)
+# Import from bundled weighit package
+# The weigh package is now bundled locally for deployment
+# If WEIGHIT_PATH is set, it will be used instead (for development)
+WEIGHIT_PATH = os.getenv('WEIGHIT_PATH')
+if WEIGHIT_PATH:
+    sys.path.insert(0, WEIGHIT_PATH)
+    print(f"Using external weighit package from: {WEIGHIT_PATH}")
 
-# Import from existing weighit package
 from weigh.scale_backend import DymoHIDScale, ScaleReading
 from weigh import logger_core, db
 
@@ -45,21 +48,15 @@ app.add_middleware(
 # Initialize scale (singleton)
 scale: Optional[DymoHIDScale] = None
 
-from mock_scale import MockScale
-
 @app.on_event("startup")
 async def startup_event():
     """Initialize scale connection on startup"""
     global scale
-    
-    if os.getenv('USE_MOCK_SCALE', '').lower() == 'true':
-        scale = MockScale()
-        print("✓ Mock Scale initialized")
-        return
 
     try:
+        # DymoHIDScale now handles mock fallback internally
         scale = DymoHIDScale()
-        print("✓ Scale initialized successfully")
+        print("✓ Scale initialized")
     except Exception as e:
         print(f"⚠ Warning: Could not initialize scale: {e}")
         scale = None
