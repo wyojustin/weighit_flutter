@@ -306,6 +306,95 @@ async def redo_last():
     else:
         raise HTTPException(status_code=404, detail="No entry to redo")
 
+@app.post("/scale/reconnect")
+async def reconnect_scale(force_mock: bool = False):
+    """Reconnect to scale with option to force mock mode"""
+    global scale
+
+    # Close existing scale connection
+    if scale:
+        scale.close()
+        scale = None
+
+    try:
+        if force_mock:
+            # Force mock scale by setting environment variable temporarily
+            from weigh.scale_backend import ScaleReading as SR
+
+            class ForcedMockScale:
+                def __init__(self):
+                    self.is_mock = True
+                    self.base_weight = 5.0
+
+                def get_latest(self):
+                    import random
+                    is_stable = random.random() > 0.1
+                    value = self.base_weight if is_stable else self.base_weight + random.uniform(-0.2, 0.2)
+                    return SR(round(value, 2), "lb", is_stable)
+
+                def read_stable_weight(self, timeout_s=2.0):
+                    import time
+                    time.sleep(0.5)
+                    return SR(self.base_weight, "lb", True)
+
+                def close(self):
+                    pass
+
+            scale = ForcedMockScale()
+            return {
+                "status": "success",
+                "scale_type": "mock",
+                "message": "Connected to mock scale"
+            }
+        else:
+            # Try to connect to real hardware
+            scale = DymoHIDScale()
+            scale_type = "mock" if scale.is_mock else "dymo"
+            return {
+                "status": "success",
+                "scale_type": scale_type,
+                "message": f"Connected to {scale_type} scale"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to reconnect: {str(e)}"
+        }
+
+@app.post("/system/shutdown")
+async def shutdown():
+    """Shutdown the API server"""
+    import signal
+    import threading
+
+    def delayed_shutdown():
+        import time
+        time.sleep(1)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    # Start shutdown in background thread
+    thread = threading.Thread(target=delayed_shutdown)
+    thread.start()
+
+    return {"status": "success", "message": "Server shutting down..."}
+
+@app.get("/scale/status")
+async def get_scale_status():
+    """Get current scale connection status"""
+    if not scale:
+        return {
+            "connected": False,
+            "type": "none",
+            "message": "No scale connected"
+        }
+
+    scale_type = "mock" if scale.is_mock else "dymo"
+    return {
+        "connected": True,
+        "type": scale_type,
+        "message": f"Connected to {scale_type} scale"
+    }
+
 if __name__ == "__main__":
     # Run with: python main.py
     uvicorn.run(app, host="127.0.0.1", port=8000)

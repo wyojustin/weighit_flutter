@@ -16,6 +16,8 @@ DEFAULT_SOURCES = {
     "SHOAF": "Shoaf Food Bank",
     "GBFB": "Greater Boston Food Bank",
     "ACFB": "Allegheny County Food Bank",
+    "Walmart": "Walmart",
+    "Giant Eagle": "Giant Eagle",
     "Other": "Other Source"
 }
 
