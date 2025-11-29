@@ -1,3 +1,4 @@
+import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
@@ -215,7 +216,7 @@ class _AdminScreenState extends State<AdminScreen> {
                 try {
                   final startDate = _startDate.toIso8601String().split('T')[0];
                   final endDate = _endDate.toIso8601String().split('T')[0];
-                  
+
                   // Build URL with query parameters
                   String url = 'http://127.0.0.1:8000/reports/email?';
                   url += 'start_date=$startDate&';
@@ -224,10 +225,10 @@ class _AdminScreenState extends State<AdminScreen> {
                   if (_emailController.text.isNotEmpty) {
                     url += 'recipient=${Uri.encodeComponent(_emailController.text)}';
                   }
-                  
+
                   // Make POST request
                   final response = await http.post(Uri.parse(url));
-                  
+
                   if (response.statusCode == 200) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
@@ -253,6 +254,152 @@ class _AdminScreenState extends State<AdminScreen> {
                 backgroundColor: Colors.green.shade700,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.all(16),
+              ),
+            ),
+            const SizedBox(height: 32),
+
+            // System Controls
+            Card(
+              color: Colors.orange.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'System Controls',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Scale Connection
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              try {
+                                final response = await http.post(
+                                  Uri.parse('http://127.0.0.1:8000/scale/reconnect?force_mock=false'),
+                                );
+                                if (response.statusCode == 200) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Connected to Dymo scale'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.scale),
+                            label: const Text('Connect Dymo'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.purple.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.all(16),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              try {
+                                final response = await http.post(
+                                  Uri.parse('http://127.0.0.1:8000/scale/reconnect?force_mock=true'),
+                                );
+                                if (response.statusCode == 200) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Connected to dummy scale'),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error: $e'),
+                                    backgroundColor: Colors.red,
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.developer_mode),
+                            label: const Text('Connect Dummy'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange.shade700,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.all(16),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Close Application
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        // Show confirmation dialog
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Close Application'),
+                            content: const Text('This will close both the API and the app. Are you sure?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Close'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirmed == true) {
+                          try {
+                            // Shutdown API server
+                            await http.post(Uri.parse('http://127.0.0.1:8000/system/shutdown'));
+
+                            // Close Flutter app
+                            if (context.mounted) {
+                              // Exit the app
+                              io.exit(0);
+                            }
+                          } catch (e) {
+                            // API might already be down, just exit
+                            io.exit(0);
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.power_settings_new),
+                      label: const Text('Close Application'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade700,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.all(16),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
