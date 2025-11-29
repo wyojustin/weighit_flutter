@@ -1,8 +1,22 @@
 #!/bin/bash
 # WeighIt Launcher Script
 # Starts both the API and Flutter app for kiosk mode
+#
+# Usage:
+#   ./start-weighit.sh           # Launch in release mode (default)
+#   ./start-weighit.sh --debug   # Launch in debug mode (faster startup)
+#   ./start-weighit.sh -d        # Launch in debug mode (short form)
 
 set -e
+
+# Parse command line arguments
+FLUTTER_MODE="--release"
+MODE_NAME="Release"
+
+if [ "$1" = "--debug" ] || [ "$1" = "-d" ]; then
+    FLUTTER_MODE=""
+    MODE_NAME="Debug"
+fi
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,7 +47,7 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 echo "========================================="
-echo "  WeighIt Food Pantry - Kiosk Mode"
+echo "  WeighIt Food Pantry - $MODE_NAME Mode"
 echo "========================================="
 echo ""
 
@@ -61,17 +75,24 @@ for i in {1..10}; do
 done
 
 # Start Flutter app
-echo "Starting Flutter app..."
+echo "Starting Flutter app in $MODE_NAME mode..."
 cd "$SCRIPT_DIR/weighit_app"
 
-# Run Flutter in release mode for better performance
-flutter run -d linux --release &
+# Run Flutter with selected mode
+if [ -z "$FLUTTER_MODE" ]; then
+    # Debug mode - faster startup, hot reload available
+    flutter run -d linux &
+else
+    # Release mode - optimized performance for production
+    flutter run -d linux $FLUTTER_MODE &
+fi
 FLUTTER_PID=$!
 
 echo ""
 echo "========================================="
-echo "  WeighIt is now running!"
+echo "  WeighIt is now running! ($MODE_NAME)"
 echo "  - API: http://127.0.0.1:8000"
+echo "  - Mode: $MODE_NAME"
 echo "  - Press Ctrl+C to exit"
 echo "========================================="
 echo ""
